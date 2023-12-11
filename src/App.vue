@@ -280,8 +280,11 @@ const sendConversation = async () => {
       }
     )
     .then((res) => {
+      chatting.value = false
       if (res?.error) {
         toast.add({ severity: 'error', summary: '提示', detail: res.error.message, life: 5000 })
+      } else {
+        toast.add({ severity: 'error', summary: '提示', detail: '网络错误，请重试！', life: 5000 })
       }
     })
 }
