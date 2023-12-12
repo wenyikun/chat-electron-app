@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain, net } from 'electron'
+import { app, BrowserWindow, ipcMain, net, dialog } from 'electron'
 import path from 'node:path'
+import fs from 'node:fs'
 import database from './database'
 // The built directory structure
 //
@@ -126,5 +127,28 @@ app.whenReady().then(() => {
   )
   ipcMain.handle('getConversation', (_event, id) => database.then((db) => db.from('conversations').where('id', id).first()))
   ipcMain.handle('deleteConversation', (_event, id) => database.then((db) => db.delete().from('conversations').where('id', id)))
+  ipcMain.handle('printToPDF', async (event) => {
+    const value = await dialog.showSaveDialog({
+      title: '保存为PDF',
+      defaultPath: '未命名.pdf',
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    })
+    if (value.canceled) {
+      return
+    }
+    const data = await event.sender.printToPDF({
+      printBackground: true,
+      margins: {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+      },
+      // scale: 1.2,
+      landscape: true,
+      pageSize: 'A4'
+    })
+    await fs.promises.writeFile(value.filePath as string, data)
+  })
   createWindow()
 })

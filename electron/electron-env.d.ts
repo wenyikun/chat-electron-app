@@ -40,5 +40,8 @@ interface Window {
     updateConversation: (data: any) => Promise<any>
     getConversation: (id: string) => Promise<any>
     deleteConversation: (id: string) => Promise<any>
+  },
+  toolApi: {
+    printToPDF: () => Promise<any>
   }
 }

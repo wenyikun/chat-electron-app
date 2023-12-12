@@ -22,6 +22,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 //   return obj
 // }
 
+// 数据库操作 api
 contextBridge.exposeInMainWorld('db', {
   insertConversation: (data: any) => ipcRenderer.invoke('insertConversation', data),
   getConversations: (data: { pageSize: number; pageNum: number; } = { pageSize: 10, pageNum: 1 }) => ipcRenderer.invoke('getConversations', data),
@@ -38,6 +39,7 @@ ipcRenderer.on('stream-reply', (_event, data) => {
   }
 })
 
+// 网络请求 api
 contextBridge.exposeInMainWorld('netApi', {
   request: (
     input: RequestInfo,
@@ -55,6 +57,10 @@ contextBridge.exposeInMainWorld('netApi', {
   abort(requestId: string) {
     ipcRenderer.send('request-abort', requestId)
   }
+})
+
+contextBridge.exposeInMainWorld('toolApi', {
+  printToPDF: () => ipcRenderer.invoke('printToPDF'),
 })
 
 // --------- Preload scripts loading ---------

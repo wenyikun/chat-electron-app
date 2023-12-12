@@ -139,6 +139,8 @@ const operatorItems = [
     },
   },
 ]
+const bottomLine = ref()
+const chatWrap = ref()
 
 // 关闭弹窗，去除输入前后空格，保存到本地
 const onConfigVisibleChange = () => {
@@ -147,6 +149,23 @@ const onConfigVisibleChange = () => {
   localStorage.setItem('apiUrl', apiUrl.value)
   localStorage.setItem('apiKey', apiKey.value)
   localStorage.setItem('apiModel', apiModel.value)
+}
+
+// 滚动到底部
+const scrollToBottom = () => {
+  nextTick(() => {
+    const content = chatWrap.value.$el.querySelector('.p-scrollpanel-content')
+    const bottomLineTop = bottomLine.value.offsetTop
+    const chatWrapHeight = chatWrap.value.$el.offsetHeight
+    const chatWrapTop = content.scrollTop
+    if (bottomLineTop > chatWrapHeight + chatWrapTop) {
+      // 底部会出现边距
+      // bottomLine.value.scrollIntoView({ behavior: 'smooth' })
+      content.scrollTo({
+        top: bottomLineTop - chatWrapHeight,
+      })
+    }
+  })
 }
 
 // 加载聊天记录
@@ -238,6 +257,7 @@ const sendConversation = async () => {
     role: 'assistant',
     content: blink,
   })
+  scrollToBottom()
   requestId = apiUrl.value + '?t=' + Date.now()
   window.netApi
     .request(
@@ -276,10 +296,14 @@ const sendConversation = async () => {
           }
           received += JSON.parse(str).choices[0].delta?.content || ''
           messages.value[messages.value.length - 1].content = received + blink
+          scrollToBottom()
         })
       }
     )
     .then((res) => {
+      if (typeof res === 'undefined') {
+        return
+      }
       chatting.value = false
       if (res?.error) {
         toast.add({ severity: 'error', summary: '提示', detail: res.error.message, life: 5000 })
@@ -304,6 +328,7 @@ const onselectConversation = (chat: any) => {
   currentChat = chat
   window.db.getConversation(chat.id).then((row) => {
     messages.value = JSON.parse(row.conversations)
+    scrollToBottom()
   })
 }
 
@@ -343,6 +368,10 @@ const onChangeRename = () => {
   })
   currentChat.showInput = false
 }
+
+// const onExportPDF = async () => {
+//   await window.toolApi.printToPDF()
+// }
 </script>
 
 <template>
@@ -392,7 +421,7 @@ const onChangeRename = () => {
         </div>
       </div> -->
     </div>
-    <div class="w-full h-full flex flex-col">
+    <div class="w-0 flex-1 h-full flex flex-col">
       <div class="px-3 py-2 flex gap-2">
         <Button
           v-if="sidebarVisible"
@@ -403,8 +432,9 @@ const onChangeRename = () => {
         ></Button>
         <Button v-else class="lg:hidden" icon="pi pi-bars" text @click="sidebarVisible = true"></Button>
         <Button icon="pi pi-cog" text aria-label="设置" @click="configVisible = true"></Button>
+        <!-- <Button icon="pi pi-file-export" text aria-label="导出PDF" @click="onExportPDF"></Button> -->
       </div>
-      <ScrollPanel class="flex-1 h-0">
+      <ScrollPanel ref="chatWrap" class="flex-1 h-0">
         <template v-for="(item, index) in messages">
           <div v-if="item.role === 'user'" :key="index" class="flex gap-4 mx-auto px-3 py-2 lg:max-w-3xl xl:max-w-4xl">
             <div class="w-8 h-8 shrink-0 bg-blue rounded">
@@ -421,6 +451,7 @@ const onChangeRename = () => {
             </div>
           </div>
         </template>
+        <div ref="bottomLine"></div>
       </ScrollPanel>
       <div class="px-3 py-2 flex gap-2 items-end w-full mx-auto lg:max-w-3xl xl:max-w-4xl">
         <Textarea

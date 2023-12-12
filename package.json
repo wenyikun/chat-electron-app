@@ -1,7 +1,7 @@
 {
   "name": "chat-electron-app",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc && vite build && electron-builder --win",
