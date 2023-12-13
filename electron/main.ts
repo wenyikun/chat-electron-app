@@ -23,12 +23,8 @@ function createWindow() {
     icon: path.join(process.env.VITE_PUBLIC, 'logo.svg'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      devTools: !!VITE_DEV_SERVER_URL
     },
-  })
-
-  // Test active push message to Renderer-process.
-  win.webContents.on('did-finish-load', () => {
-    win?.webContents.send('main-process-message', new Date().toLocaleString())
   })
 
   if (VITE_DEV_SERVER_URL) {
@@ -66,7 +62,7 @@ app.whenReady().then(() => {
       controllerMap.set(requestId, controller)
       const resp = await net.fetch(input, {
         ...rest,
-        signal: controller.signal
+        signal: controller.signal,
       })
       if (resp.ok) {
         if (responseType === 'stream') {
@@ -104,8 +100,8 @@ app.whenReady().then(() => {
       } else {
         return {
           error: {
-            message: "网络错误，请重试！"
-          }
+            message: '网络错误，请重试！',
+          },
         }
       }
     }
@@ -116,39 +112,84 @@ app.whenReady().then(() => {
     controller?.abort()
   })
   // 对话插入
-  ipcMain.handle('insertConversation', (_event, data) =>
-    database.then((db) => db.insert(data).into('conversations'))
-  )
+  ipcMain.handle('insertConversation', (_event, data) => database.then((db) => db.insert(data).into('conversations')))
   ipcMain.handle('getConversations', (_event, data) => {
-    return database.then((db) => db.select('id', 'title').limit(data.pageSize).offset((data.pageNum - 1) * data.pageSize).from('conversations').orderBy('id', 'desc'))
+    return database.then((db) =>
+      db
+        .select('id', 'title')
+        .limit(data.pageSize)
+        .offset((data.pageNum - 1) * data.pageSize)
+        .from('conversations')
+        .orderBy('id', 'desc')
+    )
   })
   ipcMain.handle('updateConversation', (_event, data) =>
     database.then((db) => db.update(data).into('conversations').where({ id: data.id }))
   )
-  ipcMain.handle('getConversation', (_event, id) => database.then((db) => db.from('conversations').where('id', id).first()))
-  ipcMain.handle('deleteConversation', (_event, id) => database.then((db) => db.delete().from('conversations').where('id', id)))
-  ipcMain.handle('printToPDF', async (event) => {
-    const value = await dialog.showSaveDialog({
-      title: '保存为PDF',
-      defaultPath: '未命名.pdf',
-      filters: [{ name: 'PDF', extensions: ['pdf'] }],
-    })
-    if (value.canceled) {
-      return
-    }
-    const data = await event.sender.printToPDF({
-      printBackground: true,
-      margins: {
-        left: 0,
-        top: 0,
-        right: 0,
-        bottom: 0,
+  ipcMain.handle('getConversation', (_event, id) =>
+    database.then((db) => db.from('conversations').where('id', id).first())
+  )
+  ipcMain.handle('deleteConversation', (_event, id) =>
+    database.then((db) => db.delete().from('conversations').where('id', id))
+  )
+
+  let pdfWin: BrowserWindow | null
+  let pdfMessages: any[] = []
+  const closePdfWin = () => {
+    pdfWin?.close()
+    pdfWin = null
+    pdfMessages = []
+  }
+  ipcMain.on('openPrintView', (_event, messages) => {
+    pdfMessages = messages
+    pdfWin = new BrowserWindow({
+      icon: path.join(process.env.VITE_PUBLIC, 'logo.svg'),
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
       },
-      // scale: 1.2,
-      landscape: true,
-      pageSize: 'A4'
+      show: false
     })
-    await fs.promises.writeFile(value.filePath as string, data)
+
+    if (VITE_DEV_SERVER_URL) {
+      pdfWin.loadURL(VITE_DEV_SERVER_URL + '#print')
+    } else {
+      // win.loadFile('dist/index.html')
+      pdfWin.loadFile(path.join(process.env.DIST, 'index.html'), {
+        hash: 'print'
+      })
+    }
+  })
+
+  ipcMain.handle('getPrintMessages', () => pdfMessages)
+
+  ipcMain.handle('printToPDF', async (event) => {
+    try {
+      const value = await dialog.showSaveDialog({
+        title: '保存为PDF',
+        defaultPath: '未命名.pdf',
+        filters: [{ name: 'PDF', extensions: ['pdf'] }],
+      })
+      if (value.canceled) {
+        closePdfWin()
+        return
+      }
+      const data = await event.sender.printToPDF({
+        printBackground: true,
+        margins: {
+          left: 0,
+          top: 0,
+          right: 0,
+          bottom: 0,
+        },
+        // scale: 1.2,
+        landscape: true,
+        pageSize: 'A4',
+      })
+      await fs.promises.writeFile(value.filePath as string, data)
+      closePdfWin()
+    } catch (error) {
+      closePdfWin()
+    }
   })
   createWindow()
 })

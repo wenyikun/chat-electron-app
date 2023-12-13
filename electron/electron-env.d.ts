@@ -43,5 +43,7 @@ interface Window {
   },
   toolApi: {
     printToPDF: () => Promise<any>
+    openPrintView: (messages: any[]) => void
+    getPrintMessages: () => Promise<any[]>
   }
 }

@@ -369,13 +369,17 @@ const onChangeRename = () => {
   currentChat.showInput = false
 }
 
-// const onExportPDF = async () => {
-//   await window.toolApi.printToPDF()
-// }
+const onExportPDF = () => {
+  if (!messages.value.length) {
+    toast.add({ severity: 'info', summary: '提示', detail: '无内容可导出！', life: 5000 })
+    return
+  }
+  window.toolApi.openPrintView(JSON.parse(JSON.stringify(messages.value)))
+}
 </script>
 
 <template>
-  <div class="flex h-full" @keydown="handleKeydown">
+  <div class="flex fixed w-full h-full left-0 top-0" @keydown="handleKeydown">
     <TieredMenu v-if="showMenu" ref="operatorMenu" :model="operatorItems" popup />
     <Toast />
     <div
@@ -431,8 +435,8 @@ const onChangeRename = () => {
           @click="sidebarVisible = false"
         ></Button>
         <Button v-else class="lg:hidden" icon="pi pi-bars" text @click="sidebarVisible = true"></Button>
-        <Button icon="pi pi-cog" text aria-label="设置" @click="configVisible = true"></Button>
-        <!-- <Button icon="pi pi-file-export" text aria-label="导出PDF" @click="onExportPDF"></Button> -->
+        <Button icon="pi pi-cog" text aria-label="设置" title="设置" @click="configVisible = true"></Button>
+        <Button icon="pi pi-file-export" text aria-label="导出PDF" title="导出PDF" @click="onExportPDF"></Button>
       </div>
       <ScrollPanel ref="chatWrap" class="flex-1 h-0">
         <template v-for="(item, index) in messages">

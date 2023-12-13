@@ -61,6 +61,10 @@ contextBridge.exposeInMainWorld('netApi', {
 
 contextBridge.exposeInMainWorld('toolApi', {
   printToPDF: () => ipcRenderer.invoke('printToPDF'),
+  openPrintView: (messages: any[]) => {
+    ipcRenderer.send('openPrintView', messages)
+  },
+  getPrintMessages: () => ipcRenderer.invoke('getPrintMessages'),
 })
 
 // --------- Preload scripts loading ---------
