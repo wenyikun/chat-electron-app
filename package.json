@@ -13,6 +13,7 @@
     "@bytemd/plugin-math": "^1.21.0",
     "@bytemd/vue-next": "^1.21.0",
     "knex": "^3.0.1",
+    "localforage": "^1.10.0",
     "primeicons": "^6.0.1",
     "primevue": "^3.41.1",
     "sqlite3": "^5.1.6",

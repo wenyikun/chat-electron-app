@@ -11,6 +11,7 @@ import './markdown.css'
 const messages = ref<
   {
     role: 'user' | 'assistant'
+    type?: 'openai' | 'gemini'
     content: string
   }[]
 >([])
@@ -42,7 +43,10 @@ window.toolApi.getPrintMessages().then(async (data) => {
       </div>
       <div v-if="item.role === 'assistant'" :key="index" class="mb-6 mx-auto p-3">
         <div class="flex gap-4">
-          <div class="w-8 h-8 flex shrink-0 bg-[--primary-color] rounded">
+          <div v-if="item.type === 'gemini'" class="w-8 h-8 flex shrink-0 bg-white rounded">
+            <img class="block m-auto w-80% h-80%" src="./assets/gemini.gif" />
+          </div>
+          <div v-else class="w-8 h-8 flex shrink-0 bg-[--primary-color] rounded">
             <img class="block m-auto w-80% h-80%" src="./assets/openai.svg" />
           </div>
           <Viewer :value="item.content" :plugins="plugins"></Viewer>

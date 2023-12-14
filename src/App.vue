@@ -264,13 +264,12 @@ const sendConversation = async () => {
             return
           }
           const chunkValue = decoder.decode(value)
-          console.log(chunkValue)
           chunkValue.split('data:').forEach((item) => {
             const str = item.trim()
             if (!str) {
               return
             }
-            received += JSON.parse(str).candidates[0].content.parts[0]?.text || ''
+            received += JSON.parse(str).candidates[0]?.content?.parts[0]?.text || ''
             messages.value[messages.value.length - 1].content = received + blink
             scrollToBottom()
           })
@@ -357,7 +356,6 @@ const onselectConversation = (chat: any) => {
   currentChat && (currentChat.showInput = false)
   currentChat = chat
   window.db.getConversation(chat.id).then((row) => {
-    console.log(row.conversations)
     messages.value = JSON.parse(row.conversations)
     scrollToBottom()
   })

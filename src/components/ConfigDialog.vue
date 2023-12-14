@@ -4,6 +4,7 @@ import Dialog from 'primevue/dialog'
 import Dropdown from 'primevue/dropdown'
 import InputText from 'primevue/inputtext'
 import Password from 'primevue/password'
+import localforage from 'localforage'
 
 const emit = defineEmits(['update:visible', 'typeChange'])
 const props = defineProps({
@@ -30,18 +31,15 @@ const types = ref([
     code: 'gemini',
   },
 ])
-const apiType = ref(localStorage.getItem('apiType') ?? 'openai')
-const apiHost = ref()
+const apiType = ref('openai')
+const apiHost = ref('https://openhi.deno.dev')
 const apiKey = ref('')
-const models = ref()
-const apiModel = ref()
+const models = ref<{ name: string; code: string }[]>([])
+const apiModel = ref('gpt-3.5-turbo')
 
-const initConfig = () => {
+const initConfig = async () => {
   const type = apiType.value
   if (type === 'openai') {
-    // https://api.openai.com
-    apiHost.value = localStorage.getItem(type + '_apiHost') ?? 'https://openhi.deno.dev'
-    apiKey.value = localStorage.getItem(type + '_apiKey') ?? ''
     models.value = [
       {
         name: 'gpt-3.5-turbo',
@@ -72,10 +70,17 @@ const initConfig = () => {
         code: 'gpt-4-vision-preview',
       },
     ]
-    apiModel.value = localStorage.getItem(type + '_apiModel') ?? 'gpt-3.5-turbo'
+    // https://api.openai.com
+    Promise.all([
+      localforage.getItem<string>(type + '_apiHost'),
+      localforage.getItem<string>(type + '_apiKey'),
+      localforage.getItem<string>(type + '_apiModel'),
+    ]).then(([host, key, model]) => {
+      apiHost.value = host ?? 'https://openhi.deno.dev'
+      apiKey.value = key ?? ''
+      apiModel.value = model ?? 'gpt-3.5-turbo'
+    })
   } else if (type === 'gemini') {
-    apiHost.value = localStorage.getItem(type + '_apiHost') ?? 'https://playai.deno.dev'
-    apiKey.value = localStorage.getItem(type + '_apiKey') ?? ''
     models.value = [
       {
         name: 'gemini-pro',
@@ -86,7 +91,15 @@ const initConfig = () => {
         code: 'gemini-pro-vision',
       },
     ]
-    apiModel.value = localStorage.getItem(type + '_apiModel') ?? 'gemini-pro'
+    Promise.all([
+      localforage.getItem<string>(type + '_apiHost'),
+      localforage.getItem<string>(type + '_apiKey'),
+      localforage.getItem<string>(type + '_apiModel'),
+    ]).then(([host, key, model]) => {
+      apiHost.value = host ?? 'https://playai.deno.dev'
+      apiKey.value = key ?? ''
+      apiModel.value = model ?? 'gemini-pro'
+    })
   }
 }
 
@@ -95,10 +108,10 @@ const onConfigVisibleChange = () => {
   const type = apiType.value
   apiHost.value = apiHost.value.trim()
   apiKey.value = apiKey.value.trim()
-  localStorage.setItem('apiType', apiType.value)
-  localStorage.setItem(type + '_apiHost', apiHost.value)
-  localStorage.setItem(type + '_apiKey', apiKey.value)
-  localStorage.setItem(type + '_apiModel', apiModel.value)
+  localforage.setItem('apiType', apiType.value)
+  localforage.setItem(type + '_apiHost', apiHost.value)
+  localforage.setItem(type + '_apiKey', apiKey.value)
+  localforage.setItem(type + '_apiModel', apiModel.value)
 }
 
 defineExpose({
@@ -117,28 +130,19 @@ const onTypeChange = () => {
   emit('typeChange', apiType.value)
 }
 
-onTypeChange()
+localforage.getItem<string>('apiType').then((type) => {
+  apiType.value = type ?? 'openai'
+  onTypeChange()
+})
 </script>
 
 <template>
-  <Dialog
-    v-model:visible="configVisible"
-    modal
-    header="设置"
-    class="xl:w-2xl"
-    :breakpoints="{ '1199px': '75vw', '575px': '90vw' }"
-    @hide="onConfigVisibleChange"
-  >
+  <Dialog v-model:visible="configVisible" modal header="设置" class="xl:w-2xl"
+    :breakpoints="{ '1199px': '75vw', '575px': '90vw' }" @hide="onConfigVisibleChange">
     <div>
       <div class="py-1 text-sm font-medium">AI 服务商</div>
-      <Dropdown
-        class="w-full"
-        v-model="apiType"
-        :options="types"
-        optionLabel="name"
-        optionValue="code"
-        @change="onTypeChange"
-      />
+      <Dropdown class="w-full" v-model="apiType" :options="types" optionLabel="name" optionValue="code"
+        @change="onTypeChange" />
     </div>
     <div class="mt-4">
       <div class="py-1 text-sm font-medium">API HOST</div>
@@ -146,7 +150,7 @@ onTypeChange()
     </div>
     <div class="mt-4">
       <div class="py-1 text-sm font-medium">API 密钥</div>
-      <Password class="w-full" :inputStyle="{ width: '100%' }" v-model="apiKey" :feedback="false" toggleMask/>
+      <Password class="w-full" :inputStyle="{ width: '100%' }" v-model="apiKey" :feedback="false" toggleMask />
     </div>
     <div class="mt-4">
       <div class="py-1 text-sm font-medium">API 模型</div>
