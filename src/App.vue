@@ -2,14 +2,12 @@
 import Button from 'primevue/button'
 // import Avatar from 'primevue/avatar'
 import Textarea from 'primevue/textarea'
-import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
-import Password from 'primevue/password'
-import Dropdown from 'primevue/dropdown'
 import ScrollPanel from 'primevue/scrollpanel'
 import Toast from 'primevue/toast'
 import { useToast } from 'primevue/usetoast'
 import TieredMenu from 'primevue/tieredmenu'
+import ConfigDialog from './components/ConfigDialog.vue'
 import { ref, onMounted, nextTick } from 'vue'
 // @ts-ignore
 import { Viewer } from '@bytemd/vue-next'
@@ -25,42 +23,11 @@ import { copyText } from './utils'
 const toast = useToast()
 const content = ref('')
 const configVisible = ref(false)
-const apiUrl = ref(localStorage.getItem('apiUrl') ?? 'https://api.openai.com/v1/chat/completions')
-const apiKey = ref(localStorage.getItem('apiKey') ?? '')
-const models = ref([
-  {
-    name: 'gpt-3.5-turbo',
-    code: 'gpt-3.5-turbo',
-  },
-  {
-    name: 'gpt-3.5-turbo-16k',
-    code: 'gpt-3.5-turbo-16k',
-  },
-  {
-    name: 'gpt-3.5-turbo-1106',
-    code: 'gpt-3.5-turbo-1106',
-  },
-  {
-    name: 'gpt-4',
-    code: 'gpt-4',
-  },
-  {
-    name: 'gpt-4-32k',
-    code: 'gpt-4-32k',
-  },
-  {
-    name: 'gpt-4-1106-preview',
-    code: 'gpt-4-1106-preview',
-  },
-  {
-    name: 'gpt-4-vision-preview',
-    code: 'gpt-4-vision-preview',
-  },
-])
-const apiModel = ref(localStorage.getItem('apiModel') ?? 'gpt-3.5-turbo')
+const configRef = ref()
 const messages = ref<
   {
     role: 'user' | 'assistant'
+    type?: 'openai' | 'gemini'
     content: string
   }[]
 >([])
@@ -142,15 +109,6 @@ const operatorItems = [
 const bottomLine = ref()
 const chatWrap = ref()
 
-// 关闭弹窗，去除输入前后空格，保存到本地
-const onConfigVisibleChange = () => {
-  apiUrl.value = apiUrl.value.trim()
-  apiKey.value = apiKey.value.trim()
-  localStorage.setItem('apiUrl', apiUrl.value)
-  localStorage.setItem('apiKey', apiKey.value)
-  localStorage.setItem('apiModel', apiModel.value)
-}
-
 // 滚动到底部
 const scrollToBottom = () => {
   nextTick(() => {
@@ -218,11 +176,20 @@ onMounted(() => {
 
 // 发送聊天
 // let requestId = ''
+const handleEnd = (content: string) => {
+  messages.value[messages.value.length - 1].content = content
+  window.db.updateConversation({
+    id: chatId.value,
+    conversations: JSON.stringify(messages.value),
+  })
+  chatting.value = false
+}
 let controller: AbortController | null = null
 const sendConversation = async () => {
   if (chatting.value) {
     return
   }
+  const config = configRef.value.getConfig()
   chatting.value = true
   messages.value.push({
     role: 'user',
@@ -256,26 +223,88 @@ const sendConversation = async () => {
   let blink = '<span class="blink">|</span>'
   messages.value.push({
     role: 'assistant',
+    type: config.apiType,
     content: blink,
   })
   scrollToBottom()
   // requestId = apiUrl.value + '?t=' + Date.now()
   controller = new AbortController()
-  fetch(apiUrl.value, {
+  if (config.apiType === 'gemini') {
+    const contents = sends.map((item) => ({
+      role: item.role === 'assistant' ? 'model' : item.role,
+      parts: [
+        {
+          text: item.content,
+        },
+      ],
+    }))
+    fetch(`${config.apiHost}/v1beta/models/${config.apiModel}:streamGenerateContent?key=${config.apiKey}&alt=sse`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents,
+      }),
+      signal: controller.signal,
+    })
+      .then(async (resp) => {
+        if (resp.status !== 200) {
+          handleEnd(received)
+          const res = await resp.json()
+          toast.add({ severity: 'error', summary: '提示', detail: res.error.message, life: 5000 })
+          return
+        }
+        const reader = resp.body!.getReader()
+        const decoder = new TextDecoder()
+        while (true) {
+          const { value, done } = await reader.read()
+          if (done) {
+            handleEnd(received)
+            return
+          }
+          const chunkValue = decoder.decode(value)
+          console.log(chunkValue)
+          chunkValue.split('data:').forEach((item) => {
+            const str = item.trim()
+            if (!str) {
+              return
+            }
+            received += JSON.parse(str).candidates[0].content.parts[0]?.text || ''
+            messages.value[messages.value.length - 1].content = received + blink
+            scrollToBottom()
+          })
+        }
+      })
+      .catch((err) => {
+        handleEnd(received)
+        if (err.name === 'AbortError') {
+          return
+        }
+        toast.add({ severity: 'error', summary: '提示', detail: '网络错误，请重试！', life: 5000 })
+      })
+    return
+  }
+  const contents = sends.map((item) => ({
+    role: item.role,
+    content: item.content,
+  }))
+  fetch(config.apiHost + '/v1/chat/completions', {
     method: 'POST',
     body: JSON.stringify({
-      model: 'gpt-3.5-turbo',
-      messages: sends,
+      model: config.apiModel,
+      messages: contents,
       stream: true,
     }),
     headers: {
-      Authorization: 'Bearer ' + apiKey.value,
+      Authorization: 'Bearer ' + config.apiKey,
       'Content-Type': 'application/json',
     },
     signal: controller.signal,
   })
     .then(async (resp) => {
       if (resp.status !== 200) {
+        handleEnd(received)
         const res = await resp.json()
         toast.add({ severity: 'error', summary: '提示', detail: res.error.message, life: 5000 })
         return
@@ -294,12 +323,7 @@ const sendConversation = async () => {
             return
           }
           if (str === '[DONE]') {
-            messages.value[messages.value.length - 1].content = received
-            window.db.updateConversation({
-              id: chatId.value,
-              conversations: JSON.stringify(messages.value),
-            })
-            chatting.value = false
+            handleEnd(received)
             return
           }
           received += JSON.parse(str).choices[0].delta?.content || ''
@@ -309,13 +333,8 @@ const sendConversation = async () => {
       }
     })
     .catch((err) => {
-      chatting.value = false
+      handleEnd(received)
       if (err.name === 'AbortError') {
-        messages.value[messages.value.length - 1].content = received
-        window.db.updateConversation({
-          id: chatId.value,
-          conversations: JSON.stringify(messages.value),
-        })
         return
       }
       toast.add({ severity: 'error', summary: '提示', detail: '网络错误，请重试！', life: 5000 })
@@ -338,6 +357,7 @@ const onselectConversation = (chat: any) => {
   currentChat && (currentChat.showInput = false)
   currentChat = chat
   window.db.getConversation(chat.id).then((row) => {
+    console.log(row.conversations)
     messages.value = JSON.parse(row.conversations)
     scrollToBottom()
   })
@@ -459,7 +479,10 @@ const onExportPDF = () => {
           </div>
           <div v-if="item.role === 'assistant'" :key="index" class="mb-6 mx-auto p-3 lg:max-w-3xl xl:max-w-4xl">
             <div class="flex gap-4">
-              <div class="w-8 h-8 flex shrink-0 bg-[--primary-color] rounded">
+              <div v-if="item.type === 'gemini'" class="w-8 h-8 flex shrink-0 bg-white rounded">
+                <img class="block m-auto w-80% h-80%" src="./assets/gemini.gif" />
+              </div>
+              <div v-else class="w-8 h-8 flex shrink-0 bg-[--primary-color] rounded">
                 <img class="block m-auto w-80% h-80%" src="./assets/openai.svg" />
               </div>
               <Viewer :value="item.content" :plugins="plugins"></Viewer>
@@ -480,27 +503,7 @@ const onExportPDF = () => {
         <Button v-else icon="pi pi-send" @click="sendConversation"></Button>
       </div>
     </div>
-    <Dialog
-      v-model:visible="configVisible"
-      modal
-      header="设置"
-      class="xl:w-2xl"
-      :breakpoints="{ '1199px': '75vw', '575px': '90vw' }"
-      @hide="onConfigVisibleChange"
-    >
-      <div>
-        <div class="py-1 text-sm font-medium">API URL</div>
-        <InputText class="w-full" type="text" v-model.trim="apiUrl" />
-      </div>
-      <div class="mt-4">
-        <div class="py-1 text-sm font-medium">API 密钥</div>
-        <Password class="w-full" :inputStyle="{ width: '100%' }" v-model.trim="apiKey" :feedback="false" toggleMask />
-      </div>
-      <div class="mt-4">
-        <div class="py-1 text-sm font-medium">API 模型</div>
-        <Dropdown class="w-full" v-model="apiModel" :options="models" optionLabel="name" optionValue="code" />
-      </div>
-    </Dialog>
+    <ConfigDialog ref="configRef" v-model:visible="configVisible"></ConfigDialog>
   </div>
 </template>
 
