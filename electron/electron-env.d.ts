@@ -23,17 +23,6 @@ declare namespace NodeJS {
 
 // Used in Renderer process, expose in `preload.ts`
 interface Window {
-  netApi: {
-    request: (
-      input: RequestInfo,
-      init?: RequestInit & {
-        requestId?: string
-        responseType?: 'arraybuffer' | 'blob' | 'document' | 'json' | 'text' | 'stream'
-      },
-      callback?: (data: { done: boolean; value: string }) => void
-    ) => Promise<any>
-    abort: (requestId: string) => void
-  }
   db: {
     insertConversation: (data: any) => Promise<any>
     getConversations: (data: { pageSize: number; pageNum: number; }) => Promise<any[]>

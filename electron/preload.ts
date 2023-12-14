@@ -1,27 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
-// --------- Expose some API to the Renderer process ---------
-// contextBridge.exposeInMainWorld('ipcRenderer', withPrototype(ipcRenderer))
-
-// `exposeInMainWorld` can't detect attributes and methods of `prototype`, manually patching it.
-// function withPrototype(obj: Record<string, any>) {
-//   const protos = Object.getPrototypeOf(obj)
-
-//   for (const [key, value] of Object.entries(protos)) {
-//     if (Object.prototype.hasOwnProperty.call(obj, key)) continue
-
-//     if (typeof value === 'function') {
-//       // Some native APIs, like `NodeJS.EventEmitter['on']`, don't work in the Renderer process. Wrapping them into a function.
-//       obj[key] = function (...args: any) {
-//         return value.call(obj, ...args)
-//       }
-//     } else {
-//       obj[key] = value
-//     }
-//   }
-//   return obj
-// }
-
 // 数据库操作 api
 contextBridge.exposeInMainWorld('db', {
   insertConversation: (data: any) => ipcRenderer.invoke('insertConversation', data),
@@ -29,34 +7,6 @@ contextBridge.exposeInMainWorld('db', {
   updateConversation: (data: any) => ipcRenderer.invoke('updateConversation', data),
   getConversation: (id: number) => ipcRenderer.invoke('getConversation', id),
   deleteConversation: (id: number) => ipcRenderer.invoke('deleteConversation', id)
-})
-
-const replyMap = new Map()
-ipcRenderer.on('stream-reply', (_event, data) => {
-  replyMap.get(data.requestId)?.(data)
-  if (data.done) {
-    replyMap.delete(data.requestId)
-  }
-})
-
-// 网络请求 api
-contextBridge.exposeInMainWorld('netApi', {
-  request: (
-    input: RequestInfo,
-    init?: RequestInit & {
-      responseType?: 'arraybuffer' | 'blob' | 'document' | 'json' | 'text' | 'stream'
-      requestId?: string
-    },
-    callback?: (data: { done: boolean; value: string }) => void
-  ) => {
-    if (init?.responseType === 'stream' && init.requestId && callback) {
-      replyMap.set(init.requestId, callback)
-    }
-    return ipcRenderer.invoke('request', input, init)
-  },
-  abort(requestId: string) {
-    ipcRenderer.send('request-abort', requestId)
-  }
 })
 
 contextBridge.exposeInMainWorld('toolApi', {

@@ -217,7 +217,8 @@ onMounted(() => {
 })
 
 // 发送聊天
-let requestId = ''
+// let requestId = ''
+let controller: AbortController | null = null
 const sendConversation = async () => {
   if (chatting.value) {
     return
@@ -258,29 +259,36 @@ const sendConversation = async () => {
     content: blink,
   })
   scrollToBottom()
-  requestId = apiUrl.value + '?t=' + Date.now()
-  window.netApi
-    .request(
-      apiUrl.value,
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
-          messages: sends,
-          stream: true,
-        }),
-        headers: {
-          Authorization: 'Bearer ' + apiKey.value,
-          'Content-Type': 'application/json',
-        },
-        responseType: 'stream',
-        requestId,
-      },
-      (data) => {
-        if (data.done) {
+  // requestId = apiUrl.value + '?t=' + Date.now()
+  controller = new AbortController()
+  fetch(apiUrl.value, {
+    method: 'POST',
+    body: JSON.stringify({
+      model: 'gpt-3.5-turbo',
+      messages: sends,
+      stream: true,
+    }),
+    headers: {
+      Authorization: 'Bearer ' + apiKey.value,
+      'Content-Type': 'application/json',
+    },
+    signal: controller.signal,
+  })
+    .then(async (resp) => {
+      if (resp.status !== 200) {
+        const res = await resp.json()
+        toast.add({ severity: 'error', summary: '提示', detail: res.error.message, life: 5000 })
+        return
+      }
+      const reader = resp.body!.getReader()
+      const decoder = new TextDecoder()
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) {
           return
         }
-        data.value.split('data:').forEach((item) => {
+        const chunkValue = decoder.decode(value)
+        chunkValue.split('data:').forEach((item) => {
           const str = item.trim()
           if (!str) {
             return
@@ -299,23 +307,26 @@ const sendConversation = async () => {
           scrollToBottom()
         })
       }
-    )
-    .then((res) => {
-      if (typeof res === 'undefined') {
+    })
+    .catch((err) => {
+      chatting.value = false
+      if (err.name === 'AbortError') {
+        messages.value[messages.value.length - 1].content = received
+        window.db.updateConversation({
+          id: chatId.value,
+          conversations: JSON.stringify(messages.value),
+        })
         return
       }
-      chatting.value = false
-      if (res?.error) {
-        toast.add({ severity: 'error', summary: '提示', detail: res.error.message, life: 5000 })
-      } else {
-        toast.add({ severity: 'error', summary: '提示', detail: '网络错误，请重试！', life: 5000 })
-      }
+      toast.add({ severity: 'error', summary: '提示', detail: '网络错误，请重试！', life: 5000 })
     })
 }
 
 // 停止聊天输出
 const abortConversation = () => {
-  window.netApi.abort(requestId)
+  // window.netApi.abort(requestId)
+  controller?.abort()
+  controller = null
 }
 
 // 选择聊天列
@@ -444,7 +455,7 @@ const onExportPDF = () => {
             <div class="w-8 h-8 shrink-0 bg-blue rounded">
               <img class="block w-full h-full" src="./assets/chatbot.svg" />
             </div>
-            <div class="text-base">{{ item.content }}</div>
+            <div class="text-base whitespace-pre-wrap">{{ item.content }}</div>
           </div>
           <div v-if="item.role === 'assistant'" :key="index" class="mb-6 mx-auto p-3 lg:max-w-3xl xl:max-w-4xl">
             <div class="flex gap-4">

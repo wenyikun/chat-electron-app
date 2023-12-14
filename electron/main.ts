@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, net, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import database from './database'
@@ -23,7 +23,7 @@ function createWindow() {
     icon: path.join(process.env.VITE_PUBLIC, 'logo.svg'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      devTools: !!VITE_DEV_SERVER_URL
+      // devTools: !!VITE_DEV_SERVER_URL
     },
   })
 
@@ -54,63 +54,6 @@ app.on('activate', () => {
 })
 
 app.whenReady().then(() => {
-  const controllerMap = new Map()
-  ipcMain.handle('request', async (event, input, init) => {
-    const { responseType, requestId, ...rest } = init
-    try {
-      const controller = new AbortController()
-      controllerMap.set(requestId, controller)
-      const resp = await net.fetch(input, {
-        ...rest,
-        signal: controller.signal,
-      })
-      if (resp.ok) {
-        if (responseType === 'stream') {
-          const reader = resp.body!.getReader()
-          const decoder = new TextDecoder()
-          while (true) {
-            const { value, done } = await reader.read()
-            const chunkValue = decoder.decode(value)
-            event.sender.send('stream-reply', {
-              value: chunkValue,
-              done,
-              requestId,
-            })
-            if (done) {
-              controllerMap.delete(requestId)
-              return
-            }
-          }
-        } else {
-          controllerMap.delete(requestId)
-          return await resp.json()
-        }
-      } else {
-        controllerMap.delete(requestId)
-        return await resp.json()
-      }
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
-        event.sender.send('stream-reply', {
-          value: 'data: [DONE]',
-          done: false,
-          requestId,
-        })
-        controllerMap.delete(requestId)
-      } else {
-        return {
-          error: {
-            message: '网络错误，请重试！',
-          },
-        }
-      }
-    }
-  })
-  // 请求终止
-  ipcMain.on('request-abort', (_event, requestId) => {
-    const controller = controllerMap.get(requestId)
-    controller?.abort()
-  })
   // 对话插入
   ipcMain.handle('insertConversation', (_event, data) => database.then((db) => db.insert(data).into('conversations')))
   ipcMain.handle('getConversations', (_event, data) => {
