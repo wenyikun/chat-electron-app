@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import database from './database'
@@ -25,6 +25,12 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       // devTools: !!VITE_DEV_SERVER_URL
     },
+  })
+
+  // 拦截跳转并用浏览器打开
+  win.webContents.on('will-navigate', (event) => {
+    shell.openExternal(event.url)
+    event.preventDefault();
   })
 
   if (VITE_DEV_SERVER_URL) {
