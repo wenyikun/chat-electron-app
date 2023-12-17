@@ -7,14 +7,9 @@ import gfm from '@bytemd/plugin-gfm'
 import math from '@bytemd/plugin-math'
 import 'highlight.js/styles/vs2015.css'
 import './markdown.css'
+import { MessageType } from './utils/types'
 
-const messages = ref<
-  {
-    role: 'user' | 'assistant'
-    type?: 'openai' | 'gemini'
-    content: string
-  }[]
->([])
+const messages = ref<MessageType[]>([])
 const plugins = [
   highlight(),
   gfm(),
@@ -39,7 +34,17 @@ window.toolApi.getPrintMessages().then(async (data) => {
         <div class="w-8 h-8 shrink-0 bg-blue rounded">
           <img class="block w-full h-full" src="./assets/chatbot.svg" />
         </div>
-        <div class="text-base">{{ item.content }}</div>
+        <div class="text-base">
+          {{ item.content }}
+          <div v-if="item.files?.length" class="flex gap-2 py-2 flex-wrap">
+            <img
+              v-for="(list, idx) in item.files"
+              :key="idx"
+              :src="`data:${list.mimeType};base64,${list.data}`"
+              class="block w-40 h-40 object-cover"
+            />
+          </div>
+        </div>
       </div>
       <div v-if="item.role === 'assistant'" :key="index" class="mb-6 mx-auto p-3">
         <div class="flex gap-4">

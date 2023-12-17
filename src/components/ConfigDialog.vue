@@ -6,7 +6,7 @@ import InputText from 'primevue/inputtext'
 import Password from 'primevue/password'
 import localforage from 'localforage'
 
-const emit = defineEmits(['update:visible', 'typeChange'])
+const emit = defineEmits(['update:visible'])
 const props = defineProps({
   visible: {
     type: Boolean,
@@ -114,7 +114,16 @@ const onConfigVisibleChange = () => {
   localforage.setItem(type + '_apiModel', apiModel.value)
 }
 
+localforage.getItem<string>('apiType').then((type) => {
+  apiType.value = type ?? 'openai'
+  initConfig()
+})
+
 defineExpose({
+  apiType,
+  apiHost,
+  apiKey,
+  apiModel,
   getConfig() {
     return {
       apiType: apiType.value,
@@ -124,16 +133,6 @@ defineExpose({
     }
   },
 })
-
-const onTypeChange = () => {
-  initConfig()
-  emit('typeChange', apiType.value)
-}
-
-localforage.getItem<string>('apiType').then((type) => {
-  apiType.value = type ?? 'openai'
-  onTypeChange()
-})
 </script>
 
 <template>
@@ -141,8 +140,7 @@ localforage.getItem<string>('apiType').then((type) => {
     :breakpoints="{ '1199px': '75vw', '575px': '90vw' }" @hide="onConfigVisibleChange">
     <div>
       <div class="py-1 text-sm font-medium">AI 服务商</div>
-      <Dropdown class="w-full" v-model="apiType" :options="types" optionLabel="name" optionValue="code"
-        @change="onTypeChange" />
+      <Dropdown class="w-full" v-model="apiType" :options="types" optionLabel="name" optionValue="code" @change="initConfig"/>
     </div>
     <div class="mt-4">
       <div class="py-1 text-sm font-medium">API HOST</div>

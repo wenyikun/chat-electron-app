@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import database from './database'
+// import { checkForUpdates } from './updater'
 // The built directory structure
 //
 // ├─┬─┬ dist
@@ -11,6 +12,7 @@ import database from './database'
 // │ │ ├── main.js
 // │ │ └── preload.js
 // │
+app.setName('GemChat') // 设置当前应用程序的名字
 process.env.DIST = path.join(__dirname, '../dist')
 process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.env.DIST, '../public')
 
@@ -30,7 +32,7 @@ function createWindow() {
   // 拦截跳转并用浏览器打开
   win.webContents.on('will-navigate', (event) => {
     shell.openExternal(event.url)
-    event.preventDefault();
+    event.preventDefault()
   })
 
   if (VITE_DEV_SERVER_URL) {
@@ -96,7 +98,7 @@ app.whenReady().then(() => {
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
       },
-      show: false
+      show: false,
     })
 
     if (VITE_DEV_SERVER_URL) {
@@ -104,7 +106,7 @@ app.whenReady().then(() => {
     } else {
       // win.loadFile('dist/index.html')
       pdfWin.loadFile(path.join(process.env.DIST, 'index.html'), {
-        hash: 'print'
+        hash: 'print',
       })
     }
   })
@@ -140,5 +142,17 @@ app.whenReady().then(() => {
       closePdfWin()
     }
   })
+
+  // 添加一个检查更新按钮
+  // const template = Menu.buildFromTemplate([
+  //   {
+  //     label: 'Check for Updates',
+  //     click: () => checkForUpdates(),
+  //   },
+  // ])
+  // const appMenu = Menu.getApplicationMenu()
+  // appMenu?.items[0].submenu?.insert(1, template.items[0]) // 在第二个位置插入新菜单项
+  // Menu.setApplicationMenu(appMenu)
+
   createWindow()
 })

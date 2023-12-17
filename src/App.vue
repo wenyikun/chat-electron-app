@@ -7,8 +7,9 @@ import ScrollPanel from 'primevue/scrollpanel'
 import Toast from 'primevue/toast'
 import { useToast } from 'primevue/usetoast'
 import TieredMenu from 'primevue/tieredmenu'
+import Image from 'primevue/image'
 import ConfigDialog from './components/ConfigDialog.vue'
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, computed } from 'vue'
 // @ts-ignore
 import { Viewer } from '@bytemd/vue-next'
 import highlight from '@bytemd/plugin-highlight'
@@ -18,18 +19,15 @@ import 'highlight.js/styles/vs2015.css'
 import './markdown.css'
 import copyIcon from './assets/copy.svg?raw'
 import copiedIcon from './assets/copied.svg?raw'
-import { copyText } from './utils'
+import { copyText, fileToGenerativePart } from './utils'
+import { FileDetail, MessageType } from './utils/types'
 
 const toast = useToast()
 const content = ref('')
 const configVisible = ref(false)
 const configRef = ref()
 const messages = ref<
-  {
-    role: 'user' | 'assistant'
-    type?: 'openai' | 'gemini'
-    content: string
-  }[]
+  MessageType[]
 >([])
 const plugins = [
   {
@@ -108,6 +106,9 @@ const operatorItems = [
 ]
 const bottomLine = ref()
 const chatWrap = ref()
+const inputFileRef = ref()
+const imageParts = ref<FileDetail[]>([])
+const apiModel = computed(() => configRef.value?.apiModel)
 
 // 滚动到底部
 const scrollToBottom = () => {
@@ -194,6 +195,7 @@ const sendConversation = async () => {
   messages.value.push({
     role: 'user',
     content: content.value,
+    files: [...imageParts.value],
   })
   // 判断 id 是否存在，不存在则新建，存在则更新
   if (!chatId.value) {
@@ -217,7 +219,6 @@ const sendConversation = async () => {
       conversations: JSON.stringify(messages.value),
     })
   }
-  content.value = ''
   const sends = messages.value.slice(-9) // 发送4条历史
   let received = ''
   let blink = '<span class="blink">|</span>'
@@ -230,14 +231,36 @@ const sendConversation = async () => {
   // requestId = apiUrl.value + '?t=' + Date.now()
   controller = new AbortController()
   if (config.apiType === 'gemini') {
-    const contents = sends.map((item) => ({
-      role: item.role === 'assistant' ? 'model' : item.role,
-      parts: [
+    let contents: any[] = []
+    if (config.apiModel === 'gemini-pro-vision') {
+      // gemini-pro-vision 必须要带图片，并且不能多轮聊天
+      if (!imageParts.value.length) {
+        toast.add({ severity: 'error', summary: '提示', detail: 'gemini-pro-vision模型需要添加图片！', life: 5000 })
+        return
+      }
+      contents = [
         {
-          text: item.content,
+          role: 'user',
+          parts: [
+            {
+              text: content.value,
+            },
+            ...imageParts.value.map((item) => ({ inline_data: item })),
+          ],
         },
-      ],
-    }))
+      ]
+    } else {
+      contents = sends.map((item) => ({
+        role: item.role === 'assistant' ? 'model' : item.role,
+        parts: [
+          {
+            text: item.content,
+          },
+        ],
+      }))
+    }
+    content.value = ''
+    imageParts.value.length = 0
     fetch(`${config.apiHost}/v1beta/models/${config.apiModel}:streamGenerateContent?key=${config.apiKey}&alt=sse`, {
       method: 'POST',
       headers: {
@@ -288,6 +311,7 @@ const sendConversation = async () => {
     role: item.role,
     content: item.content,
   }))
+  content.value = ''
   fetch(config.apiHost + '/v1/chat/completions', {
     method: 'POST',
     body: JSON.stringify({
@@ -398,12 +422,30 @@ const onChangeRename = () => {
   currentChat.showInput = false
 }
 
+// 导出 PDF
 const onExportPDF = () => {
   if (!messages.value.length) {
     toast.add({ severity: 'info', summary: '提示', detail: '无内容可导出！', life: 5000 })
     return
   }
   window.toolApi.openPrintView(JSON.parse(JSON.stringify(messages.value)))
+}
+
+// 点击上传图片按钮
+const onSelectFile = () => {
+  inputFileRef.value.click()
+}
+
+const onFileChange = (event: any) => {
+  const files = event.target.files
+  Promise.all([...files].slice(0, 5 - imageParts.value.length).map(fileToGenerativePart)).then((res) => {
+    imageParts.value.unshift(...res)
+  })
+  event.target.value = ''
+}
+
+const onDeleteImg = (index: number) => {
+  imageParts.value.splice(index, 1)
 }
 </script>
 
@@ -473,7 +515,18 @@ const onExportPDF = () => {
             <div class="w-8 h-8 shrink-0 bg-blue rounded">
               <img class="block w-full h-full" src="./assets/chatbot.svg" />
             </div>
-            <div class="text-base whitespace-pre-wrap">{{ item.content }}</div>
+            <div class="text-base whitespace-pre-wrap">
+              {{ item.content }}
+              <div v-if="item.files?.length" class="flex gap-2 py-2 flex-wrap">
+                <Image
+                  v-for="(list, idx) in item.files"
+                  :key="idx"
+                  :src="`data:${list.mimeType};base64,${list.data}`"
+                  image-class="block w-40 h-40 object-cover"
+                  preview
+                />
+              </div>
+            </div>
           </div>
           <div v-if="item.role === 'assistant'" :key="index" class="mb-6 mx-auto p-3 lg:max-w-3xl xl:max-w-4xl">
             <div class="flex gap-4">
@@ -489,7 +542,26 @@ const onExportPDF = () => {
         </template>
         <div ref="bottomLine"></div>
       </ScrollPanel>
+      <div v-if="imageParts.length > 0" class="px-3 py-2 flex gap-4 items-end w-full mx-auto lg:max-w-3xl xl:max-w-4xl">
+        <div class="relative w-20 h-20" v-for="(item, index) in imageParts">
+          <div
+            class="absolute z-9999 p-3px rounded-full right-0 translate-x-1/2 translate-y--1/2 top-0 bg-[--surface-100] cursor-pointer"
+            @click="onDeleteImg(index)"
+          >
+            <i class="!block font-size-3 pi pi-times"></i>
+          </div>
+          <Image
+            :src="`data:${item.mimeType};base64,${item.data}`"
+            image-class="block w-20 h-20 object-cover"
+            preview
+          />
+        </div>
+      </div>
       <div class="px-3 py-2 flex gap-2 items-end w-full mx-auto lg:max-w-3xl xl:max-w-4xl">
+        <template v-if="apiModel === 'gemini-pro-vision'">
+          <Button icon="pi pi-images" outlined @click="onSelectFile"></Button>
+          <input class="hidden" ref="inputFileRef" type="file" accept="image/*" multiple @change="onFileChange" />
+        </template>
         <Textarea
           class="w-full max-h-200px !overflow-y-auto"
           v-model="content"
