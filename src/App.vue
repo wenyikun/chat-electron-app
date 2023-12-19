@@ -26,9 +26,7 @@ const toast = useToast()
 const content = ref('')
 const configVisible = ref(false)
 const configRef = ref()
-const messages = ref<
-  MessageType[]
->([])
+const messages = ref<MessageType[]>([])
 const plugins = [
   {
     viewerEffect({ markdownBody }: any) {
@@ -451,7 +449,7 @@ const onDeleteImg = (index: number) => {
 
 <template>
   <div class="flex fixed w-full h-full left-0 top-0" @keydown="handleKeydown">
-    <TieredMenu v-if="showMenu" ref="operatorMenu" :model="operatorItems" popup />
+    <TieredMenu v-if="showMenu" ref="operatorMenu" :model="operatorItems" tabindex="" popup />
     <Toast />
     <div
       class="!lg:ml-0 ml--260px w-260px flex flex-col h-full flex-shrink-0 overflow-hidden bg-black transition-all"
@@ -562,6 +560,13 @@ const onDeleteImg = (index: number) => {
           <Button icon="pi pi-images" outlined @click="onSelectFile"></Button>
           <input class="hidden" ref="inputFileRef" type="file" accept="image/*" multiple @change="onFileChange" />
         </template>
+        <!-- <Button
+          icon="pi pi-microphone"
+          text
+          severity="secondary"
+          iconClass="font-size-5"
+          @click="onSpeechRecord"
+        ></Button> -->
         <Textarea
           class="w-full max-h-200px !overflow-y-auto"
           v-model="content"
@@ -569,7 +574,7 @@ const onDeleteImg = (index: number) => {
           rows="1"
           placeholder="请输入...（⇧⏎换行）"
         ></Textarea>
-        <Button v-if="chatting" icon="pi pi-stop" @click="abortConversation"></Button>
+        <Button v-if="chatting" icon="pi pi-stop-circle" @click="abortConversation"></Button>
         <Button v-else icon="pi pi-send" @click="sendConversation"></Button>
       </div>
     </div>
