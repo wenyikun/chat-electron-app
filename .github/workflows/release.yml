@@ -24,15 +24,8 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build Mac Electron package
-        if: ${{ matrix.os == 'macos-latest' }}
-        run: npm run build:mac
-        env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-
-      - name: Build Windows Electron package
-        if: ${{ matrix.os == 'windows-latest' }}
-        run: npm run build:win
+      - name: Build Electron package
+        run: npm run build
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
 

@@ -445,6 +445,25 @@ const onFileChange = (event: any) => {
 const onDeleteImg = (index: number) => {
   imageParts.value.splice(index, 1)
 }
+
+// 复制内容
+const onCopyContent = (text: string) => {
+  try {
+    copyText(text)
+    toast.add({ severity: 'success', summary: '提示', detail: '内容已复制到剪贴板！', life: 3000 })
+  } catch (error) {
+    toast.add({ severity: 'error', summary: '提示', detail: '内容复制失败！', life: 3000 })
+  }
+}
+
+const onResend = (index: number) => {
+  const userItem = messages.value[index - 1]
+  if (userItem) {
+    content.value = userItem.content
+    imageParts.value = userItem.files || []
+    sendConversation()
+  }
+}
 </script>
 
 <template>
@@ -526,7 +545,7 @@ const onDeleteImg = (index: number) => {
               </div>
             </div>
           </div>
-          <div v-if="item.role === 'assistant'" :key="index" class="mb-6 mx-auto p-3 lg:max-w-3xl xl:max-w-4xl">
+          <div v-if="item.role === 'assistant'" :key="index" class="mb-2 mx-auto p-3 lg:max-w-3xl xl:max-w-4xl">
             <div class="flex gap-4">
               <div v-if="item.type === 'gemini'" class="w-8 h-8 flex shrink-0 bg-white rounded">
                 <img class="block m-auto w-80% h-80%" src="./assets/gemini.gif" />
@@ -535,6 +554,22 @@ const onDeleteImg = (index: number) => {
                 <img class="block m-auto w-80% h-80%" src="./assets/openai.svg" />
               </div>
               <Viewer :value="item.content" :plugins="plugins"></Viewer>
+            </div>
+            <div v-if="index !== messages.length - 1 || !chatting" class="pl-12 pt-1">
+              <Button
+                icon="pi pi-copy"
+                text
+                severity="secondary"
+                class="p-2 w-auto aspect-square"
+                @click="onCopyContent(item.content)"
+              ></Button>
+              <Button
+                icon="pi pi-replay"
+                text
+                severity="secondary"
+                class="p-2 w-auto aspect-square"
+                @click="onResend(index)"
+              ></Button>
             </div>
           </div>
         </template>
